@@ -10,10 +10,9 @@ services:
       POSTGRES_PASSWORD: aistory_dev_password
       POSTGRES_DB: aistory_db
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U aistory" ]
       interval: 10s

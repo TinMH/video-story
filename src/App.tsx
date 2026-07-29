@@ -17,7 +17,6 @@ import { FlowHeader } from './components/FlowEditor/FlowHeader';
 import { NodeSelector } from './components/FlowEditor/NodeSelector';
 import { FlowCanvas } from './components/FlowEditor/FlowCanvas';
 import { NodeDetailPanel } from './components/FlowEditor/NodeDetailPanel';
-import { mockFlows } from './data/mockFlows';
 import type { Flow } from './data/mockFlows';
 import './App.css';
 
@@ -25,8 +24,16 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTab, setCurrentTab] = useState('flows');
   const [currentView, setCurrentView] = useState<'dashboard' | 'editor'>('dashboard');
-  const [flows, setFlows] = useState<Flow[]>(mockFlows);
+  const [flows, setFlows] = useState<Flow[]>([]);
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+
+  // Load workflows from database on component mount
+  useEffect(() => {
+    fetch('/api/flows')
+      .then((res) => res.json())
+      .then((data) => setFlows(data))
+      .catch((err) => console.error('Error fetching workflows from database:', err));
+  }, []);
 
   // xyflow states
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -466,60 +473,105 @@ function App() {
       edges: initialEdges,
     };
 
-    setFlows((prev) => [newFlow, ...prev]);
-    handleSelectFlow(newId);
+    fetch('/api/flows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newFlow),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        setFlows((prev) => [newFlow, ...prev]);
+        handleSelectFlow(newId);
+      })
+      .catch((err) => console.error('Error saving new flow to database:', err));
   };
 
   // Delete a flow from the dashboard
   const handleDeleteFlow = (id: string) => {
     if (confirm('Are you sure you want to delete this workflow?')) {
-      setFlows((prev) => prev.filter((f) => f.id !== id));
+      fetch(`/api/flows/${id}`, { method: 'DELETE' })
+        .then((res) => res.json())
+        .then(() => {
+          setFlows((prev) => prev.filter((f) => f.id !== id));
+        })
+        .catch((err) => console.error('Error deleting flow from database:', err));
     }
   };
 
   // Toggle active/draft status
   const handleToggleStatus = (id: string) => {
-    setFlows((prev) =>
-      prev.map((f) => {
-        if (f.id === id) {
-          const newStatus = f.status === 'active' ? 'draft' : 'active';
-          return { ...f, status: newStatus };
-        }
-        return f;
+    const flow = flows.find((f) => f.id === id);
+    if (!flow) return;
+    const updatedFlow = {
+      ...flow,
+      status: (flow.status === 'active' ? 'draft' : 'active') as 'active' | 'draft',
+    };
+
+    fetch('/api/flows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedFlow),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        setFlows((prev) => prev.map((f) => (f.id === id ? updatedFlow : f)));
       })
-    );
+      .catch((err) => console.error('Error updating status in database:', err));
   };
 
   // Rename a flow
   const handleRenameFlow = (newName: string) => {
     if (activeFlowId) {
-      setFlows((prev) =>
-        prev.map((f) => (f.id === activeFlowId ? { ...f, name: newName } : f))
-      );
+      const flow = flows.find((f) => f.id === activeFlowId);
+      if (!flow) return;
+      const updatedFlow = {
+        ...flow,
+        name: newName,
+      };
+
+      fetch('/api/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFlow),
+      })
+        .then((res) => res.json())
+        .then(() => {
+          setFlows((prev) => prev.map((f) => (f.id === activeFlowId ? updatedFlow : f)));
+        })
+        .catch((err) => console.error('Error renaming flow in database:', err));
     }
   };
 
   // Save changes
   const handleSavePipeline = () => {
     if (activeFlowId) {
-      setFlows((prev) =>
-        prev.map((f) => {
-          if (f.id === activeFlowId) {
-            return {
-              ...f,
-              nodes: nodes.map(({ data, ...n }) => {
-                // Strip the onDataChange function when saving to mock db
-                const { onDataChange, ...restData } = data as any;
-                return { ...n, data: restData };
-              }),
-              edges: edges,
-              lastUpdated: 'Just now',
-            };
-          }
-          return f;
+      const flow = flows.find((f) => f.id === activeFlowId);
+      if (!flow) return;
+
+      const cleanedNodes = nodes.map(({ data, ...n }) => {
+        // Strip the onDataChange function when saving to database
+        const { onDataChange, ...restData } = data as any;
+        return { ...n, data: restData };
+      });
+
+      const updatedFlow = {
+        ...flow,
+        nodes: cleanedNodes,
+        edges: edges,
+        lastUpdated: 'Just now',
+      };
+
+      fetch('/api/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFlow),
+      })
+        .then((res) => res.json())
+        .then(() => {
+          setFlows((prev) => prev.map((f) => (f.id === activeFlowId ? updatedFlow : f)));
+          alert('Pipeline workflow saved successfully!');
         })
-      );
-      alert('Pipeline workflow saved successfully!');
+        .catch((err) => console.error('Error saving pipeline to database:', err));
     }
   };
 
@@ -608,11 +660,27 @@ function App() {
       setNodeStatus('compilerNode', 'success');
       setSimulationStep('Workflow Pipeline Executed successfully!');
       
-      // Update executions tally in dashboard state
+      // Update executions tally in dashboard state and database
       if (activeFlowId) {
-        setFlows((prev) =>
-          prev.map((f) => (f.id === activeFlowId ? { ...f, runs: f.runs + 1, successRate: 99.2 } : f))
-        );
+        setFlows((prev) => {
+          const currentFlow = prev.find((f) => f.id === activeFlowId);
+          if (currentFlow) {
+            const updatedFlow = {
+              ...currentFlow,
+              runs: currentFlow.runs + 1,
+              successRate: 99.2,
+            };
+            
+            fetch('/api/flows', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatedFlow),
+            }).catch((err) => console.error('Error updating simulation run count in database:', err));
+
+            return prev.map((f) => (f.id === activeFlowId ? updatedFlow : f));
+          }
+          return prev;
+        });
       }
     }, 9500);
     timers.push(t4);
