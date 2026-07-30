@@ -20,6 +20,8 @@ import { NodeDetailPanel } from './components/FlowEditor/NodeDetailPanel';
 import type { Flow } from './data/mockFlows';
 import './App.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentTab, setCurrentTab] = useState('flows');
@@ -29,7 +31,7 @@ function App() {
 
   // Load workflows from database on component mount
   useEffect(() => {
-    fetch('/api/flows')
+    fetch(`${API_BASE_URL}/api/flows`)
       .then((res) => res.json())
       .then((data) => setFlows(data))
       .catch((err) => console.error('Error fetching workflows from database:', err));
@@ -473,7 +475,7 @@ function App() {
       edges: initialEdges,
     };
 
-    fetch('/api/flows', {
+    fetch(`${API_BASE_URL}/api/flows`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newFlow),
@@ -489,7 +491,7 @@ function App() {
   // Delete a flow from the dashboard
   const handleDeleteFlow = (id: string) => {
     if (confirm('Are you sure you want to delete this workflow?')) {
-      fetch(`/api/flows/${id}`, { method: 'DELETE' })
+      fetch(`${API_BASE_URL}/api/flows/${id}`, { method: 'DELETE' })
         .then((res) => res.json())
         .then(() => {
           setFlows((prev) => prev.filter((f) => f.id !== id));
@@ -507,7 +509,7 @@ function App() {
       status: (flow.status === 'active' ? 'draft' : 'active') as 'active' | 'draft',
     };
 
-    fetch('/api/flows', {
+    fetch(`${API_BASE_URL}/api/flows`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedFlow),
@@ -529,7 +531,7 @@ function App() {
         name: newName,
       };
 
-      fetch('/api/flows', {
+      fetch(`${API_BASE_URL}/api/flows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFlow),
@@ -561,7 +563,7 @@ function App() {
         lastUpdated: 'Just now',
       };
 
-      fetch('/api/flows', {
+      fetch(`${API_BASE_URL}/api/flows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFlow),
@@ -671,7 +673,7 @@ function App() {
               successRate: 99.2,
             };
             
-            fetch('/api/flows', {
+            fetch(`${API_BASE_URL}/api/flows`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(updatedFlow),

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: express-api
+  namespace: automation
+  labels:
+    app: express-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: express-api
+  template:
+    metadata:
+      labels:
+        app: express-api
+    spec:
+      containers:
+      - name: express-api
+        # LƯU Ý: Thay thế bằng địa chỉ Docker Registry và tên Image thực tế của bạn sau khi build
+        image: your-docker-registry/videostory-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: PORT
+          value: "3001"
+        - name: NODE_ENV
+          value: "production"
+        # Đường dẫn kết nối Postgres nội bộ bên trong cluster.
+        # Chú ý: Kiểm tra chính xác tên Service Postgres của bạn bằng lệnh: kubectl get svc -n automation
+        - name: DATABASE_URL
+          value: "postgresql://aistory:aistory_dev_password@postgres-automation-postgresql.automation.svc.cluster.local:5432/aistory_db?sslmode=disable"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: express-api-service
+  namespace: automation
+  labels:
+    app: express-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  selector:
+    app: express-api
