@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // Get all flows
-app.get('/api/flows', async (req, res) => {
+app.get('/api/flows', async (_req, res) => {
   try {
     const dbFlows = await db.select().from(flows);
     // Parse successRate decimal to float for compatibility with mockFlows interface
